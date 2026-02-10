@@ -1,15 +1,15 @@
-from langchain_community.llms import Ollama
+from langchain_ollama import OllamaLLM
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
 def main():
-    llm = Ollama(
-        model="llama3",   # LLaMA 3 8B
+    llm = OllamaLLM(
+        model="llama3:8b-instruct-q4_K_M",
         temperature=0
     )
     prompt = PromptTemplate.from_template(
     """
-    너는 친절한 한국어 세무사 AI 챗봇이야.
+    너는 한국어 세무사 AI 챗봇이야.
     질문에 대해 이모티콘과 특수 기호 없이 질문에 정확하게 답해줘.
 
     질문: {question}
@@ -17,7 +17,7 @@ def main():
     """
     )
     chain = prompt | llm | StrOutputParser()
-    
+
     print("세무사 AI Chatbot")
 
     while True:
