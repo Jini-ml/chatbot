@@ -6,6 +6,9 @@ from langchain_core.chat_history import InMemoryChatMessageHistory
 classifier_store = {}
 answer_store = {}
 
+CLASSIFIER_MODEL_NAME = "bllossom-3B-class"   # 분류기용 모델
+ANSWER_MODEL_NAME = "bllossom-tax"      # 세무 답변 생성 모델
+
 SYSTEM_PROMPT = """
 너는 한국어 세무사 AI 챗봇이다.
 
@@ -55,6 +58,29 @@ def get_classifier_session_history(session_id: str):
         classifier_store[session_id] = InMemoryChatMessageHistory()
     return classifier_store[session_id]
 
+# 분류기 라벨 정규화 함수 (세무/비세무/메타 중 하나로 변환)
+def normalize_label(raw_label: str) -> str:
+    """
+    분류기 출력이 약간 흔들려도 세무/비세무/메타 중 하나로 정규화
+    """
+    raw_label = (raw_label or "").strip()
+    compact = raw_label.replace("\n", "").replace(" ", "")
+
+    # 정확 일치 우선
+    if compact in ("세무", "비세무", "메타"):
+        return compact
+
+    # 방어적 처리
+    if "비세무" in raw_label:
+        return "비세무"
+    elif "메타" in raw_label:
+        return "메타"
+    elif "세무" in raw_label:
+        return "세무"
+
+    # 기본값
+    return "비세무"
+
 answer_prompt = ChatPromptTemplate.from_messages([
     ("system", SYSTEM_PROMPT),
     MessagesPlaceholder(variable_name="history"),
@@ -67,7 +93,7 @@ classifier_prompt = ChatPromptTemplate.from_messages([
     ("human", "{question}")
 ])
 
-# 분류기 실행 함수: 히스토리를 참고하되, '세무'와 '메타'일 때만 히스토리에 저장하는 정책 적용
+# 분류기 실행 함수: 히스토리를 참고하되, '세무'와 '메타'일 때만 히스토리에 저장
 def classify_question_and_save_conditional(classifier_chain, question: str, session_id: str) -> str:
     history = get_classifier_session_history(session_id)
 
@@ -76,25 +102,10 @@ def classify_question_and_save_conditional(classifier_chain, question: str, sess
         "history": history.messages,  # 수동으로 히스토리 주입
     })
 
-    raw_label = (result.content or "").strip()
+    raw_label = (getattr(result, "content", "") or "").strip()
     print(f"[분류 원본 출력] {raw_label!r}")
 
-    raw_label = (raw_label or "").strip()
-    compact = raw_label.replace("\n", "").replace(" ", "")
-
-    # 정확 일치 우선
-    if compact in ("세무", "비세무", "메타"):
-        label = compact
-
-    # 방어적 처리
-    if "비세무" in raw_label:
-        label = "비세무"
-    elif "메타" in raw_label:
-        label = "메타"
-    elif "세무" in raw_label:
-        label = "세무"
-    else:
-        label = "비세무"  # 기본값
+    label = normalize_label(raw_label)
     
     # 분류기 히스토리 저장 정책: 세무/메타만 저장, 비세무는 저장 안 함
     if label in ("세무", "메타"):
@@ -112,16 +123,21 @@ def has_answer_history(session_id: str) -> bool:
     return len(history.messages) > 0
 
 def main():
-    llm = ChatOllama(
-        model="bllossom-tax",
+    classifier_llm = ChatOllama(
+        model=CLASSIFIER_MODEL_NAME,
         temperature=0,
-        num_gpu=0
+        num_gpu=1,   # 1: GPU 할당, 0: CPU, -1: 자동
+    )
+    answer_llm = ChatOllama(
+        model=ANSWER_MODEL_NAME,
+        temperature=0,
+        num_gpu=0,  # 답변 생성은 CPU로 처리
     )
     # 분류기
-    classifier_chain = classifier_prompt | llm
+    classifier_chain = classifier_prompt | classifier_llm
     
     # 답변기
-    answer_chain = answer_prompt | llm
+    answer_chain = answer_prompt | answer_llm
     
     answer_with_history = RunnableWithMessageHistory(
         answer_chain,
@@ -130,10 +146,12 @@ def main():
         history_messages_key="history",
     )
 
-    print("세무사 AI Chatbot")
+    print("세무사 AI Chatbot (분류기/답변기 2모델 분리)")
+    print(f"- 분류기 모델: {CLASSIFIER_MODEL_NAME} (GPU)")
+    print(f"- 답변기 모델: {ANSWER_MODEL_NAME} (CPU)")
     print("종료하려면 '종료' 또는 '끝' 입력")
     print()
-
+    
     # 분류기와 답변기 세션을 분리하여 관리
     base_session_id = "user-1"
     classifier_session_id = f"classifier:{base_session_id}"
