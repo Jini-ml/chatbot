@@ -12,7 +12,7 @@ from langchain_core.prompts import ChatPromptTemplate
 # =========================
 # 설정
 # =========================
-CLASSIFIER_MODEL_NAME = "bllossom-tax"
+CLASSIFIER_MODEL_NAME = "bllossom_8b_tax_answer:q4km"
 
 CSV_PATH = "valid.csv"   # 평가용 CSV 경로
 QUESTION_COL = "text"    # 질문 컬럼명
