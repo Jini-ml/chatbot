@@ -3,10 +3,12 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_core.chat_history import InMemoryChatMessageHistory
 
+from ollama_utils import ollama_session
+
 classifier_store = {}
 answer_store = {}
 
-ANSWER_MODEL_NAME = "bllossom_8b_tax_answer:q4km "
+ANSWER_MODEL_NAME = "bllossom_8b_tax_answer:q4km"
 
 SYSTEM_PROMPT = """
 너는 한국어 세무사 AI 챗봇이다.
@@ -114,95 +116,97 @@ def has_answer_history(session_id: str) -> bool:
     return len(history.messages) > 0
 
 def main():
-    llm = ChatOllama(
-        model=ANSWER_MODEL_NAME,
-        temperature=0,
-        num_gpu=0
-    )
-    # 분류기
-    classifier_chain = classifier_prompt | llm
-    
-    # 답변기
-    answer_chain = answer_prompt | llm
-    
-    answer_with_history = RunnableWithMessageHistory(
-        answer_chain,
-        get_answer_session_history,
-        input_messages_key="question",
-        history_messages_key="history",
-    )
+    # Ollama 자동 실행 및 상담 종료 시 자동 종료
+    with ollama_session():
+        llm = ChatOllama(
+            model=ANSWER_MODEL_NAME,
+            temperature=0,
+            num_gpu=0
+        )
+        # 분류기
+        classifier_chain = classifier_prompt | llm
+        
+        # 답변기
+        answer_chain = answer_prompt | llm
+        
+        answer_with_history = RunnableWithMessageHistory(
+            answer_chain,
+            get_answer_session_history,
+            input_messages_key="question",
+            history_messages_key="history",
+        )
 
-    print("세무사 AI Chatbot")
-    print("종료하려면 '종료' 또는 '끝' 입력")
-    print()
+        print("세무사 AI Chatbot")
+        print("종료하려면 '종료' 또는 '끝' 입력")
+        print()
 
-    # 분류기와 답변기 세션을 분리하여 관리
-    base_session_id = "user-1"
-    classifier_session_id = f"classifier:{base_session_id}"
-    answer_session_id = f"answer:{base_session_id}"
+        # 분류기와 답변기 세션을 분리하여 관리
+        base_session_id = "user-1"
+        classifier_session_id = f"classifier:{base_session_id}"
+        answer_session_id = f"answer:{base_session_id}"
 
-    while True:
-        user_input = input("상담자: ").strip()
+        while True:
+            user_input = input("상담자: ").strip()
 
-        if not user_input:
-            print("AI 세무사: 질문을 입력해주세요.\n")
-            continue
-
-        if user_input.lower() in ["종료", "끝"]:
-            print("상담을 종료합니다.")
-            break
-
-        try:
-            # 분류(세무, 비세무, 메타)
-            label = classify_question_and_save_conditional(
-                classifier_chain,
-                user_input,
-                classifier_session_id
-            )
-            print(f"[분류결과] {label}")
-
-            # 비세무면 고정 문구 출력
-            if label == "비세무":
-                print("AI 세무사: 세무 관련 질문에만 답변할 수 있습니다.")
-                print()
+            if not user_input:
+                print("AI 세무사: 질문을 입력해주세요.\n")
                 continue
 
-            # 메타 요청 처리
-            if label == "메타":
-                # 히스토리가 없으면 다음 문구 출력
-                if not has_answer_history(answer_session_id):
-                    print("AI 세무사: 요약할 이전 세무 상담 내용이 없습니다.")
+            if user_input.lower() in ["종료", "끝"]:
+                print("상담을 종료합니다.")
+                break
+
+            try:
+                # 분류(세무, 비세무, 메타)
+                label = classify_question_and_save_conditional(
+                    classifier_chain,
+                    user_input,
+                    classifier_session_id
+                )
+                print(f"[분류결과] {label}")
+
+                # 비세무면 고정 문구 출력
+                if label == "비세무":
+                    print("AI 세무사: 세무 관련 질문에만 답변할 수 있습니다.")
                     print()
                     continue
 
-                response = answer_with_history.invoke(
-                    {"question": user_input},
-                    config={"configurable": {"session_id": answer_session_id}}
-                )
+                # 메타 요청 처리
+                if label == "메타":
+                    # 히스토리가 없으면 다음 문구 출력
+                    if not has_answer_history(answer_session_id):
+                        print("AI 세무사: 요약할 이전 세무 상담 내용이 없습니다.")
+                        print()
+                        continue
 
-                print("AI 세무사:", (response.content or "").strip())
+                    response = answer_with_history.invoke(
+                        {"question": user_input},
+                        config={"configurable": {"session_id": answer_session_id}}
+                    )
+
+                    print("AI 세무사:", (response.content or "").strip())
+                    print()
+                    continue
+
+                # 세무 질문 처리
+                if label == "세무":
+                    response = answer_with_history.invoke(
+                        {"question": user_input},
+                        config={"configurable": {"session_id": answer_session_id}}
+                    )
+
+                    print("AI 세무사:", (response.content or "").strip())
+                    print()
+                    continue
+
+                # 혹시 모를 예외 라벨 방어
+                print("AI 세무사: 세무 관련 질문에만 답변할 수 있습니다.")
                 print()
-                continue
 
-            # 세무 질문 처리
-            if label == "세무":
-                response = answer_with_history.invoke(
-                    {"question": user_input},
-                    config={"configurable": {"session_id": answer_session_id}}
-                )
-
-                print("AI 세무사:", (response.content or "").strip())
+            # 디버깅을 위해 예외 메시지 출력 추가 (실제 배포 시에는 제거)
+            except Exception as e:
+                print("AI 세무사: 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
                 print()
-                continue
-
-            # 혹시 모를 예외 라벨 방어
-            print("AI 세무사: 세무 관련 질문에만 답변할 수 있습니다.")
-            print()
-
-        # 디버깅을 위해 예외 메시지 출력 추가 (실제 배포 시에는 제거)
-        except Exception as e:
-            print("AI 세무사: 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
-            print()
 
 if __name__ == "__main__":
     main()
