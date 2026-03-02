@@ -6,8 +6,8 @@ from langchain_core.chat_history import InMemoryChatMessageHistory
 classifier_store = {}
 answer_store = {}
 
-CLASSIFIER_MODEL_NAME = "bllossom-3B-class"   # 분류기용 모델
-ANSWER_MODEL_NAME = "bllossom-tax"      # 세무 답변 생성 모델
+CLASSIFIER_MODEL_NAME = "bllossom_3b_classifier:q4km"   # 분류기용 모델
+ANSWER_MODEL_NAME = "bllossom_8b_tax_answer:q4km "      # 세무 답변 생성 모델
 
 SYSTEM_PROMPT = """
 너는 한국어 세무사 AI 챗봇이다.

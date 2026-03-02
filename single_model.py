@@ -6,6 +6,8 @@ from langchain_core.chat_history import InMemoryChatMessageHistory
 classifier_store = {}
 answer_store = {}
 
+ANSWER_MODEL_NAME = "bllossom_8b_tax_answer:q4km "
+
 SYSTEM_PROMPT = """
 너는 한국어 세무사 AI 챗봇이다.
 
@@ -113,7 +115,7 @@ def has_answer_history(session_id: str) -> bool:
 
 def main():
     llm = ChatOllama(
-        model="bllossom-tax",
+        model=ANSWER_MODEL_NAME,
         temperature=0,
         num_gpu=0
     )
