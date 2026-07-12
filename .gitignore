@@ -5,5 +5,8 @@ __pycache__/
 models/**
 *.csv
 
+.env
+.env.local
+
 !models/Modelfile.classifier
 !models/Modelfile.answer

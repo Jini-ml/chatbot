@@ -1,5 +1,5 @@
 import single_model
-import two_llama_model
+import chatbot_service
 import bert_llama_model
 
 def run_single():
@@ -7,8 +7,8 @@ def run_single():
     single_model.main()
 
 def run_two_llama():
-    import two_llama_model
-    two_llama_model.main()
+    import chatbot_service
+    chatbot_service.main()
 
 def run_bert_llama():
     import bert_llama_model
