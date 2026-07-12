@@ -1,4 +1,1 @@
-# Model files
-*.gguf
-model/
-checkpoints/
+*

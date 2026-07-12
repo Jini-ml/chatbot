@@ -26,7 +26,7 @@
     "%SystemRoot%\System32\chcp.com" 65001 > nul
 )
 
-@for %%i in ("C:\Users\csjin\Desktop\Project\chatbot\.venv") do @set "VIRTUAL_ENV=%%~fi"
+@for %%i in ("C:\Users\csjin\Desktop\chatbot\.venv") do @set "VIRTUAL_ENV=%%~fi"
 
 @set "VIRTUAL_ENV_PROMPT=chatbot"
 @if NOT DEFINED VIRTUAL_ENV_PROMPT (

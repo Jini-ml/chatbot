@@ -1,3 +1,6 @@
+import os
+from contextlib import nullcontext
+
 from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
@@ -125,26 +128,35 @@ def has_answer_history(session_id: str) -> bool:
     return len(history.messages) > 0
 
 def main():
-    with ollama_session():
+    use_external_ollama = os.getenv("USE_EXTERNAL_OLLAMA", "0") == "1"
+    session_context = nullcontext if use_external_ollama else ollama_session
+
+    with session_context():
+        OLLAMA_BASE_URL = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+
         classifier_llm = ChatOllama(
             model=CLASSIFIER_MODEL_NAME,
+            base_url=OLLAMA_BASE_URL,
             temperature=0.0,
             num_predict=5,
             repeat_penalty=1.3,
             repeat_last_n=256,
-            num_gpu=1   # 1: GPU 할당, 0: CPU, -1: 자동
+            num_gpu=1
         )
+
         answer_llm = ChatOllama(
             model=ANSWER_MODEL_NAME,
+            base_url=OLLAMA_BASE_URL,
             temperature=0,
-            num_gpu=0  # 답변 생성은 CPU로 처리
+            num_gpu=0
         )
+
         # 분류기
         classifier_chain = classifier_prompt | classifier_llm
-        
+
         # 답변기
         answer_chain = answer_prompt | answer_llm
-        
+
         answer_with_history = RunnableWithMessageHistory(
             answer_chain,
             get_answer_session_history,

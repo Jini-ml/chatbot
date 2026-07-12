@@ -1,0 +1,27 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: tax-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+      - ./models:/models
+    restart: unless-stopped
+
+  chatbot:
+    build: .
+    container_name: tax-chatbot
+    depends_on:
+      - ollama
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      USE_EXTERNAL_OLLAMA: "1"
+    volumes:
+      - .:/app
+    stdin_open: true
+    tty: true
+    command: python two_llama_model.py
+
+volumes:
+  ollama_data:
